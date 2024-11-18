@@ -34,7 +34,7 @@ io.on('connection', (socket) => {
 // Endpoint GET para obtener la lista de música
 app.get('/music', (req, res) => {
     // Envia la lista de música a través de WebSockets
-    io.emit('musicList', music);  // Envia la lista de música a todos los clientes conectados
+    io.emit('updateMusicList', music);  // Envia la lista de música a todos los clientes conectados
     res.json(music);  // También respondemos con la lista por la ruta HTTP
 });
 
@@ -49,7 +49,7 @@ app.post('/music', (req, res) => {
     music.push(newSong);
 
     // Emitimos la lista de música actualizada a todos los clientes conectados
-    io.emit('musicList', music);  // Envia la lista de música a todos los clientes
+    io.emit('updateMusicList', music);  // Envia la lista de música a todos los clientes
 
     res.status(201).json(newSong);  // Responde de forma tradicional con la nueva canción
 });
@@ -65,7 +65,7 @@ app.put('/music/:id', (req, res) => {
     song.album = req.body.album || song.album;
 
     // Emitimos la lista de música actualizada a todos los clientes conectados
-    io.emit('musicList', music);  // Envia la lista de música a todos los clientes
+    io.emit('updateMusicList', music);  // Envia la lista de música a todos los clientes
 
     res.json({ message: 'Canción actualizada', song });  // Responde de forma tradicional con la canción actualizada
 });
@@ -78,7 +78,7 @@ app.delete('/music/:id', (req, res) => {
     const deletedSong = music.splice(index, 1);  // Eliminar la canción
 
     // Emitimos la lista de música actualizada a todos los clientes conectados
-    io.emit('musicList', music);  // Envia la lista de música a todos los clientes
+    io.emit('updateMusicList', music);  // Envia la lista de música a todos los clientes
 
     res.json({ message: 'Canción eliminada', song: deletedSong });  // Responde de forma tradicional con la canción eliminada
 });
