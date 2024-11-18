@@ -1,101 +1,119 @@
 package com.example.prueba
 
-// Importaciones necesarias para trabajar con Android, Retrofit y LiveData
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.widget.LinearLayout
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.prueba.network.RetrofitInstance
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import android.widget.TextView
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 
-// La clase MainActivity hereda de ComponentActivity, que es una actividad base más ligera, ideal para trabajar con Jetpack Compose y UI moderna.
+// Clase principal de la actividad
 class MainActivity : ComponentActivity() {
-
-    // Variable para contener el LinearLayout donde se mostrará la lista de canciones
-    private lateinit var musicListContainer: LinearLayout
-
-    // Este método se llama cuando se crea la actividad. Es el lugar donde inicializamos la UI y configuramos todo.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Establecemos el layout de la actividad (el archivo activity_main.xml) como la vista principal
-        setContentView(R.layout.activity_main)
-
-        // Inicializamos el contenedor de la lista (un LinearLayout en el XML)
-        musicListContainer = findViewById(R.id.musicListContainer)
-
-        // Inicializamos el ViewModel usando ViewModelProvider. El ViewModel es responsable de manejar los datos de la UI.
-        val musicViewModel = ViewModelProvider(this).get(MusicViewModel::class.java)
-
-        // Aquí observamos el LiveData del ViewModel, es decir, escuchamos cualquier cambio en la lista de música
-        musicViewModel.musicList.observe(this) { musicList ->
-            // Cada vez que los datos cambian, llamamos a esta función para actualizar la UI con la nueva lista
-            updateMusicList(musicList)
-        }
-
-        // Iniciamos la carga de canciones llamando al método fetchMusic() del ViewModel
-        musicViewModel.fetchMusic()
-    }
-
-    // Esta función recibe una lista de música y actualiza la UI (el LinearLayout) con esos datos
-    private fun updateMusicList(musicList: List<Music>) {
-        // Limpiamos el contenedor antes de agregar nuevos elementos
-        musicListContainer.removeAllViews()
-
-        // Iteramos sobre cada canción en la lista
-        for (music in musicList) {
-            // Inflamos el layout (esto crea la vista de cada ítem) a partir de un archivo XML
-            val itemView = LayoutInflater.from(this).inflate(R.layout.item_layout, musicListContainer, false)
-
-            // Obtenemos las referencias a los TextViews en el layout inflado para actualizar su contenido
-            val titleText: TextView = itemView.findViewById(R.id.titleText)
-            val artistText: TextView = itemView.findViewById(R.id.artistText)
-            val albumText: TextView = itemView.findViewById(R.id.albumText)
-
-            // Asignamos los valores de la canción a los TextViews
-            titleText.text = music.title
-            artistText.text = "Artist: ${music.artist}"
-            albumText.text = "Album: ${music.album}"
-
-            // Agregamos este ítem al contenedor de la lista (es decir, lo mostramos en la pantalla)
-            musicListContainer.addView(itemView)
+        // Configuramos Jetpack Compose como el contenido de la actividad
+        setContent {
+            MusicApp()
         }
     }
 }
 
-// El ViewModel es responsable de manejar los datos de la UI y de mantener esos datos durante los cambios de configuración (como la rotación de pantalla).
+// Función raíz de la aplicación
+@Composable
+fun MusicApp() {
+    // Obtenemos el ViewModel usando la función de Compose `viewModel()`
+    val musicViewModel: MusicViewModel = viewModel()
+
+    // Observamos el estado de la lista de canciones desde el ViewModel
+    val musicList by musicViewModel.musicList.collectAsState(initial = emptyList())
+
+    // Llamamos a `fetchMusic` al primer inicio de la composición para cargar los datos
+    LaunchedEffect(Unit) {
+        musicViewModel.fetchMusic()
+    }
+
+    // Tema de Material Design
+    MaterialTheme {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Music List",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Mostramos la lista de música
+                MusicList(musicList)
+            }
+        }
+    }
+}
+
+// Función que muestra la lista de canciones usando LazyColumn
+@Composable
+fun MusicList(musicList: List<Music>) {
+    // Usamos LazyColumn para mostrar las canciones de forma eficiente
+    LazyColumn {
+        items(musicList) { music ->
+            MusicItem(music)
+        }
+    }
+}
+
+// Función para mostrar los datos de cada canción
+@Composable
+fun MusicItem(music: Music) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        elevation = CardDefaults.elevatedCardElevation(8.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = music.title, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = "Artist: ${music.artist}")
+            Text(text = "Album: ${music.album}")
+        }
+    }
+}
+
+// ViewModel para gestionar los datos de música
 class MusicViewModel : ViewModel() {
 
-    // MutableLiveData para la lista de canciones. Esta variable se usa para cambiar y observar los datos.
-    private val _musicList = MutableLiveData<List<Music>>(emptyList())
-
-    // LiveData solo de lectura. Esto es lo que la actividad observará para detectar cambios.
-    val musicList: LiveData<List<Music>> = _musicList
+    // MutableStateFlow para la lista de canciones. Esto reemplaza LiveData en Compose
+    private val _musicList = MutableStateFlow<List<Music>>(emptyList())
+    val musicList: StateFlow<List<Music>> = _musicList
 
     // Método para obtener la lista de canciones desde la API
     fun fetchMusic() {
-        // Usamos Retrofit para hacer una llamada a la API que devuelve una lista de música
         RetrofitInstance.api.getAllMusic().enqueue(object : Callback<List<Music>> {
             override fun onResponse(call: Call<List<Music>>, response: Response<List<Music>>) {
-                // Si la respuesta es exitosa (código 200), actualizamos el LiveData con la lista de canciones
                 if (response.isSuccessful) {
-                    // Actualizamos la lista de música con los datos obtenidos
+                    // Si la respuesta es exitosa, actualizamos el estado con los datos de la música
                     _musicList.value = response.body() ?: emptyList()
                 } else {
-                    // Si hubo un error en la respuesta, establecemos la lista como vacía
+                    // Si hubo un error en la respuesta, dejamos la lista vacía
                     _musicList.value = emptyList()
                 }
             }
 
             override fun onFailure(call: Call<List<Music>>, t: Throwable) {
-                // Si hubo un error en la llamada (como un problema de red), también establecemos la lista vacía
+                // En caso de un fallo de red, también dejamos la lista vacía
                 _musicList.value = emptyList()
             }
         })
